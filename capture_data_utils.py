@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
 """This script contains all of the modules used in capture_data.py"""
 
-import picamera
-import picamera.array
 import time
 import numpy as np
 import cv2
 from raspberry_pi_libraries import multi_wrapper
-from raspberry_pi_libraries import camera_wrapper
 
 class CaptureData(multi_wrapper.Packages):
     """Class that adapts parents modules for CaptureData"""
@@ -19,17 +16,12 @@ class CaptureData(multi_wrapper.Packages):
             self._mean = np.sum(self._elapsed_times)/frame_num*1.0
             self._fps = 1.0 / self._mean
 
-    class Frame(camera_wrapper.Packages.Frame):
+    class Frame:
         """Keeps track of all data regarding the video stream"""
-        def __init__(self, name, side, filename, limit_of_frames=None):
+        def __init__(self, name, side, filename, cameraId, limit_of_frames=None):
             self._width = 640
             self._height = 480
-            self._camera = picamera.PiCamera()
-            self._camera.resolution = (self._width, self._height)
-            self._camera.framerate = 32
-            self._camera.start_preview()
-            time.sleep(0.1)
-            self._camera.stop_preview()
+            self._camera = cv2.VideoCapture(cameraId)
             self._name = name
             self._frame = np.array([])
             self._filename = filename
@@ -49,9 +41,10 @@ class CaptureData(multi_wrapper.Packages):
             self._duplicate_frame = False
 
             frame = None
-            with picamera.array.PiRGBArray(self._camera, size=(self._width, self._height)) as stream:
-                self._camera.capture(stream, format="bgr", use_video_port=True)
-                frame = stream.array
+            if self._camera.isOpened():
+                check, raw = self._camera.read()
+                if check:
+                    frame = raw
 
             if self._frame.any():
                 if not (np.subtract(self._frame_orig, cv2.resize(frame, (320, 240))).any()):
@@ -63,15 +56,19 @@ class CaptureData(multi_wrapper.Packages):
         def preprocessing(self):
             """Preprocesses the frame"""
             if not self._duplicate_frame:
-                self._frame = cv2.flip(self._frame, -1)
-                self._frame = self._frame[0:self._height,
-                                          int((self._width-self._height)/2):
-                                          int((self._width+self._height)/2)]
+                # self._frame = self._frame[0:self._height,
+                #                           int((self._width-self._height)/2):
+                #                           int((self._width+self._height)/2)]
+                self._frame = cv2.resize(self._frame, (self._height, self._height))
 
                 if self._limit_of_frames:
                     self._buffer[self._num-1] = self._frame
                 else:
                     self._buffer.append(self._frame)
+
+        def imshow(self):
+            """Displays the frame"""
+            cv2.imshow(self._name, self._frame)
 
         def update(self):
             if not self._duplicate_frame:
@@ -101,6 +98,10 @@ class CaptureData(multi_wrapper.Packages):
         def get_num(self):
             """Returns running number of current frames"""
             return self._num
+
+        def get_camera(self):
+            """Returns video stream object"""
+            return self._camera
 
     class InitBashArgs(multi_wrapper.Packages.InitBashArgs):
         """Initalizes the arguements present for bash execution which will be different for each
