@@ -16,7 +16,7 @@ def main():
 
     fps = CaptureData.Fps()
 
-    frame = CaptureData.Frame(side=300, name="Cam", filename=args.filename, limit_of_frames=args.limit_of_frames)
+    frame = CaptureData.Frame(side=300, name="Cam", filename=args.filename, cameraId=2, limit_of_frames=args.limit_of_frames)
 
     try:
         while True:
@@ -29,7 +29,7 @@ def main():
                 CaptureData.check_for_quit_request()
 
     except CaptureData.Break:
-        frame.get_camera().close()
+        frame.get_camera().release()
         cv2.destroyAllWindows()
 
         fps.calculate(frame.get_num())
